@@ -4,7 +4,7 @@ class Snake < ApplicationRecord
   COLORS = ['#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080', '#e6beff', '#9a6324', '#fffac8', '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080']
   VALID_MOVES = ['N', 'S', 'E', 'W']
 
-  validates :name, presence: true
+  validates :name, presence: true, length: {maximum: 30}
   validates :intent, inclusion: VALID_MOVES, allow_blank: true
 
   before_create :setup_snake
@@ -63,7 +63,17 @@ class Snake < ApplicationRecord
     self.last_intent = self.intent || self.last_intent
     self.intent = nil
     self.length = segment_positions.count + 1 # For head
+
+    self.items.each do |item|
+      item["turns_left"] = item["turns_left"].to_i - 1
+    end
+
+    self.items.reject!{|item| item["turns_left"] <= 0 }
     save!
+  end
+
+  def has_food?
+    items.detect{|i| i["item_type"] == "food" || i["item_type"] == "dead_snake" }.present?
   end
 
   def kill

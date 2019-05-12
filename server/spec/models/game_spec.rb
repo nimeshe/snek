@@ -11,11 +11,52 @@ describe Game do
 
   let!(:game) { Game.new }
 
+  let(:width) { 10 }
+  let(:height) { 8 }
+
   before do
-    game.setup(width: 10, height: 8)
+    game.setup(width: width, height: height)
   end
 
   let(:snake) { create_test_snake("mike", x: 2, y: 3) }
+
+  describe "spawning a snake" do
+    let!(:snake) { Snake.create(name: "foo", ip_address: '127.0.0.1') }
+
+    let!(:other_snake) { create_test_snake("other", x: 3, y: 1) }
+
+    let(:width) { 6}
+    let(:height) { 3}
+
+    before do
+      other_snake.update_attributes(segment_positions: [{x: 4, y: 1}] )
+      other_snake.set_intent("W")
+    end
+
+    it 'should spawn in a free space' do
+      game.tick
+      snake.reload
+      expect(snake.head.x).to eq(1)
+      expect(snake.head.y).to eq(1)
+    end
+  end
+
+  describe "spawning an item" do
+    let!(:other_snake) { create_test_snake("other", x: 3, y: 1) }
+
+    let(:width) { 6}
+    let(:height) { 3}
+
+    before do
+      other_snake.update_attributes(segment_positions: [{x: 4, y: 1}] )
+      other_snake.set_intent("W")
+    end
+
+    it 'should spawn in a free space' do
+      game.tick
+      expect(Item.first.position).to eq({"x" => 1, "y" => 1})
+    end
+  end
 
   describe "snake movement" do
     context "when the snake has registered an intent" do
@@ -66,6 +107,29 @@ describe Game do
     end
   end
 
+  describe "collecting an item" do
+    let!(:item) { Item.create(item_type: "food", position: {x: 3, y: 3}) }
+    before do
+      snake.set_intent('E')
+    end
+
+    it 'should pick up the item' do
+      game.tick
+      snake.reload
+
+      expect(snake.items).to eq([{"item_type" => "food", "turns_left" => 5}])
+
+      expect(Item.all).to be_empty
+    end
+
+    it 'should record an event' do
+      game.tick
+      snake.reload
+
+      expect(game.events.count).to eq 1
+    end
+  end
+
   describe "collisions" do
     context 'when there is no collision' do
       let!(:other_snake) { create_test_snake("other", x: 3, y: 3) }
@@ -110,6 +174,20 @@ describe Game do
 
         expect(Snake.alive.map(&:id)).to eq([other_snake.id])
         expect(Snake.dead.length).to eq(1)
+        expect(game.events.count).to eq 1
+        expect(Item.find_by(item_type: "dead_snake")).to be_nil
+      end
+
+      context 'when the snake is long' do
+        it 'should create an item' do
+          snake.update_attributes(segment_positions: 11.times.map{ {x: 5,y: 5} } )
+
+          game.tick
+
+          expect(Snake.alive.map(&:id)).to eq([other_snake.id])
+          expect(Snake.dead.length).to eq(1)
+          expect(Item.find_by(item_type: "dead_snake").position).to eq({"x" => 5, "y" => 5})
+        end
       end
     end
 

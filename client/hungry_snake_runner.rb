@@ -5,19 +5,14 @@ require 'active_support'
 require 'active_support/core_ext/hash/indifferent_access'
 
 require_relative "./util/client.rb"
-require_relative "./random_snake.rb"
+require_relative "./hungry_snake.rb"
 
-<<<<<<< HEAD
-SNEK_HOST = ENV.fetch("SNEK_HOST") { "10.0.1.11:8080" }
-=======
-SNEK_HOST = ENV.fetch("SNEK_HOST") { "localhost:8080" }
->>>>>>> 100856038840b8b80146e8dacead60307a0f311a
+SNEK_HOST = ENV.fetch("SNEK_HOST") { "localhost:3000" }
 
 $client = Client.new("http://#{SNEK_HOST}")
 
 @snake_id = nil
 @auth_token = nil
-#@last_move = nil
 
 EventMachine.run do
   uri = "ws://#{SNEK_HOST}/cable"
@@ -30,7 +25,7 @@ EventMachine.run do
   }
 
   client.disconnected {
-    @snake_name, @snake_id, @auth_token, @map = nil, @last_move = nil
+    @snake_name, @snake_id, @auth_token, @map = nil
     puts "Doh - disconnected - no snek running at #{SNEK_HOST}"
 
     sleep 1
@@ -45,10 +40,10 @@ EventMachine.run do
       game_state = payload.fetch("message").with_indifferent_access
 
       my_snake = game_state.fetch("alive_snakes").detect{|snake| snake.fetch("id") == @snake_id }
-      
+
       if !my_snake
         # Oh no - there is no my_snake.  Let's make one
-        @snake_name = "(-|-)<<NimmityNoms>>"
+        @snake_name = "#{`whoami`.chomp} #{rand(123123)}"
         puts "Making a new snake: #{@snake_name}"
         response = $client.register_snake(@snake_name)
         if response["snake_id"]
@@ -59,12 +54,7 @@ EventMachine.run do
         end
       else
         # Yay - my_snake lives on - Let's get a move
-        time = Time.now
-        #puts "Last Move Before Move : " + @last_move.to_s
-        move = RandomSnake.new(my_snake, game_state, @map).get_intent
-        #puts "Time to get move : " + (Time.now - time).to_s
-        #@last_move = move
-        #puts "Last Move After Move: " + @last_move.to_s
+        move = HungrySnake.new(my_snake, game_state, @map).get_intent
         puts "Snake is at: #{my_snake.fetch(:head)} - Moving #{@snake_name} #{move}"
         $client.set_intent(@snake_id, move, @auth_token)
       end
